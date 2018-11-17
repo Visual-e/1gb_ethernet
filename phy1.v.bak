@@ -1,0 +1,225 @@
+module phy1(
+input wire clock25_0,
+input wire clock250_0,
+input wire clock125_90,
+input wire rst,
+output wire phy1_mdc,
+inout wire phy1_mdio,
+output wire phy1_res,
+input wire phy1_int,
+output wire phy1_clk_25,
+output wire phy1_tx_clk,
+input wire phy1_rx_clk,
+output reg phy1_ctl,
+input wire phy1_rx_dv,
+output reg[7:0]phy1_tx,
+input wire [3:0]phy1_rx,
+
+//RAM
+output reg [10:0]ipmem_address,
+input wire [7:0]ipmem_q,
+output reg phy_ready,
+input wire cpy_ready
+);
+
+//----------------------------ETH Send----------------------------------
+reg [10:0] clk_counter; 	// Number of bits determines pause time
+reg [2:0] state;
+reg tx_state;
+reg [31:0] delay_count;
+
+assign phy1_res = rst;
+assign phy1_clk_25 = clock25_0;
+assign phy1_tx_clk = clock125_90;
+
+always @(posedge clock250_0)
+begin
+if (rst==0)
+	begin
+
+
+	delay_count <= 0;
+	state <= 1;
+	end
+else
+	begin
+//----------------------------------------------------------------------		
+	if(state==0)
+		begin
+		phy1_ctl <= 1'b1; // Transmission is enabled
+		phy_ready <= 0;
+		if (clk_counter > 11'd1198)
+			begin
+			state <= 1;
+			end
+		else
+			begin
+			if(tx_state==0)
+				begin
+
+				phy1_tx <= ipmem_q;
+				clk_counter <= clk_counter + 1'b1;
+				tx_state <= 1;
+				end
+			else if(tx_state==1)
+				begin
+
+
+				ipmem_address <= clk_counter;
+				tx_state <= 0;
+				end
+			end
+		end
+//--------------------------------------------------------------------
+	else if(state==1)
+		begin
+		phy1_ctl <= 1'b0; // Transmission is disabled
+		phy1_tx <= 8'h0;
+		phy_ready <=1;
+		ipmem_address <= 11'h0;
+		if(delay_count<3001)
+			begin
+			delay_count <= delay_count + 1;
+			end
+		else
+			begin
+			if(cpy_ready==1)
+				begin
+				delay_count <= 0;
+				clk_counter <= 11'h0;
+				tx_state <= 0;
+				state <= 0;
+				end
+			end
+		end
+   end   
+end
+
+//--------------------------------MDIO interface-----------------------------
+parameter preamble=32'hFFFFFFFF;
+parameter start=2'b01;
+parameter operation=2'b01;
+parameter phy_address=5'd0;
+parameter reg_address0=5'd20;
+parameter reg_address1=5'd0;
+parameter reg_address2=5'd0;
+parameter ta=2'b10;
+parameter data0=16'h0000;
+parameter data1=16'h1140;
+parameter data2=16'h9140;
+parameter stop=2'bzz;
+
+
+reg phy1_mdc_wr;
+reg phy1_mdc_rd;
+reg phy1_mdio_wr;
+reg [7:0]delay_cnt;
+reg [31:0]wait_cnt;
+reg [7:0]stat;
+reg [65:0]to_mdio;
+reg [1:0]pol;
+reg [7:0]reg_to_wr;
+reg r_w;
+
+md_io_buf md_io_buf_inst (
+	.datain (phy1_mdio_wr),
+	.oe (r_w),
+	.dataio (phy1_mdio),
+	.dataout (phy1_mdio_rd)
+	);
+
+md_o_buf md_o_buf_inst (
+	.datain (phy1_mdc_wr),
+	.dataout (phy1_mdc)
+	);
+
+always @(posedge clock25_0)
+begin
+if (rst==0)
+	begin
+	wait_cnt <= 0;
+	stat <= 0;
+	pol <= 0;
+	r_w <= 1;
+	delay_cnt <= 0;
+	reg_to_wr <= 0;
+	phy1_mdc_wr <= 0;
+	to_mdio <= {preamble, start, operation, phy_address, reg_address0, ta, data0, stop};
+	end
+else
+	begin
+	delay_cnt <= delay_cnt + 1;
+
+	if(delay_cnt>=40)
+		begin
+		delay_cnt <= 0;
+
+		if(stat<66)
+			begin
+				if(pol==0)
+					begin
+					phy1_mdc_wr <= 0;
+					if(to_mdio[65]==1'bz)
+						begin
+						r_w <= 0;
+						end
+					else
+						begin
+						r_w <= 1;
+						end
+					pol <= 1;	
+					end
+				else if(pol==1)
+					begin
+						phy1_mdio_wr <= to_mdio[65];
+						pol <= 2;
+					end
+				else if(pol==2)
+					begin
+						phy1_mdc_wr <= 1;
+						pol <= 3;
+					end
+				else if(pol==3)
+					begin
+						to_mdio <= to_mdio << 1;
+						stat <= stat + 1;
+						pol <= 0;
+					end
+			end
+		else
+			begin
+			wait_cnt <= wait_cnt + 1;
+			if(wait_cnt>100000)
+				begin
+				wait_cnt <= 0;
+				if(reg_to_wr==0)
+					begin
+					to_mdio <= {preamble, start, operation, phy_address, reg_address1, ta, data1, stop};
+					stat <= 0;
+					pol <= 0;
+					r_w <= 1;
+					delay_cnt <= 0;
+					phy1_mdc_wr <= 0;
+					reg_to_wr <= 1;
+					end
+				else if(reg_to_wr==1)
+					begin
+					to_mdio <= {preamble, start, operation, phy_address, reg_address2, ta, data2, stop};
+					stat <= 0;
+					pol <= 0;
+					r_w <= 1;
+					delay_cnt <= 0;
+					phy1_mdc_wr <= 0;
+					reg_to_wr <= 2;
+					end
+				else if(reg_to_wr==2)
+					begin
+					reg_to_wr <= 2;
+					end
+				end
+			end
+		end
+	end
+end
+
+endmodule

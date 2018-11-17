@@ -1,0 +1,22 @@
+module gb_ethernet(
+	input		[3:0]KEY,
+	inout		PHY_MDIO,
+	output	PHY_MDC,
+	output	PHY_RST,
+	output	PHY_GTX_CLK,
+	output	PHY_TX_EN,
+	output	[3:0]PHY_TXD,
+	input		[1:0]PHY_CLK25,
+	input		[1:0]PHY_CLK125,
+	input		PHY_RX_CLK,
+	input		PHY_RX_DV,
+	input		[3:0]PHY_RXD,
+	input		PHY_INT
+);
+	
+assign PHY_RST=KEY[0];
+assign PHY_GTX_CLK=PHY_RX_CLK;
+assign PHY_TX_EN=PHY_RX_DV;
+assign PHY_TXD=PHY_RXD;
+
+endmodule
