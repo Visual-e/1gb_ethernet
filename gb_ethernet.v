@@ -13,7 +13,8 @@ module gb_ethernet(
 	input		PHY_RX_DV,
 	input		[3:0]PHY_RXD,
 	input		PHY_INT,
-	output   TEST
+	output   CLK_25,
+	output   CLK_250
 );
 
 wire PLL_CLK_25_0;
@@ -37,20 +38,22 @@ wire 	IP_RAM_WREN;
 wire 	[7:0]IP_RAM_Q;
 
 
-assign TEST=PLL_CLK_25_0;
+assign CLK_25=PLL_CLK_25_0;
+assign CLK_250=PLL_CLK_250_0;
 
-assign PHY_TXD=DATA_TO_PHY_BUF[3:0];
-assign PHY_TX_EN=DATA_TO_PHY_BUF[4];
-assign DATA_OUT_H[4]=PHY_CTL_BUF;
-assign DATA_OUT_L[4]=PHY_CTL_BUF ^ 1'b0;
-assign PHY_RST=PHY_RES;
+// Transmit
+//assign PHY_TXD=DATA_TO_PHY_BUF[3:0];
+//assign PHY_TX_EN=DATA_TO_PHY_BUF[4];
+//assign DATA_OUT_H[4]=PHY_CTL_BUF;
+//assign DATA_OUT_L[4]=PHY_CTL_BUF ^ 1'b0;
+//assign PHY_RST=PHY_RES;
 
 
 // Loopback test
-//assign PHY_TXD=PHY_RXD;
-//assign PHY_TX_EN=PHY_RX_DV;
-//assign PHY_TX_CLK=PHY_RX_CLK;
-//assign PHY_RST=KEY[0];
+assign PHY_TXD=PHY_RXD;
+assign PHY_TX_EN=PHY_RX_DV;
+assign PHY_TX_CLK=PHY_RX_CLK;
+assign PHY_RST=KEY[0];
 
 	
 main_pll pll(
@@ -97,7 +100,7 @@ phy1 phy_snd(
 	.phy1_res (PHY_RES),
 	.phy1_int (PHY_INT),
 	.phy1_clk_25 (PHY_CLK25),
-	.phy1_tx_clk (PHY_TX_CLK),
+	//.phy1_tx_clk (PHY_TX_CLK),
 	.phy1_rx_clk (PHY_RX_CLK),
 	.phy1_ctl (PHY_CTL_BUF),
 	.phy1_rx_dv (PHY_RXDV),
